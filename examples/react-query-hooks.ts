@@ -1,6 +1,17 @@
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
-import api from "../api/api";
 import { useEffect } from "react";
+
+
+import axios from "axios";
+
+const api = axios.create({
+  baseURL: "http://localhost:8000/api/auth", // Change to your backend URL
+  headers: {
+    "Content-Type": "application/json",
+  },
+  withCredentials: true,
+});
+
 
 export const useCheckAuth = () => {
   return useQuery({
