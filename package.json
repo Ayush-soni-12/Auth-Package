@@ -4,6 +4,19 @@
   "description": "Enterprise-grade authentication package for Express",
   "main": "index.js",
   "type": "module",
+  "files": [
+    "index.js",
+    "config.js",
+    "adapters",
+    "controllers",
+    "examples",
+    "helpers",
+    "middlewares",
+    "modals",
+    "routes",
+    "utils",
+    "validation"
+  ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
