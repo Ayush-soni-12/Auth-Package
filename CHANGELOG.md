@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2026-06-16
 
 ### Added
-- Initial release of `express-advanced-auth`.
+- Initial release of `neural-auth`.
 - Fully modular Authentication API with 10 secure endpoints.
 - Dependency Injection architecture using the **Adapter Pattern** (`DatabaseAdapter`, `EmailAdapter`, `CacheAdapter`).
 - Pre-built `MongooseAdapter` for quick MongoDB integration.

@@ -18,7 +18,7 @@ A complete, enterprise-grade Authentication package for Express applications. St
 ## 📦 Installation
 
 ```bash
-npm install express-advanced-auth
+npm install neural-auth
 ```
 *(Note: Replace with your actual npm package name when published)*
 
@@ -60,7 +60,7 @@ import {
   initAuth, 
   MongooseAdapter, 
   NodeMailerAdapter 
-} from 'express-advanced-auth';
+} from 'neural-auth';
 
 const app = express();
 app.use(express.json());
@@ -179,7 +179,7 @@ Call this on page load in your frontend to see if the user is currently logged i
 We've included a completely free, production-ready React Query implementation for all these endpoints. You don't have to write any frontend authentication logic yourself!
 
 Just copy the file from:
-`node_modules/express-advanced-auth/examples/react-query-hooks.ts`
+`node_modules/neural-auth/examples/react-query-hooks.ts`
 
 It includes ready-to-use hooks like `useLoginMutation`, `useVerifyOtpMutation`, `useCheckAuth`, and `useGoogleAuth` that automatically handle caching, local storage, and secure cookie management perfectly!
 
@@ -224,7 +224,7 @@ The Forget Password email sends users to `/resetPassword/ID/TOKEN`.
 By default, the package uses RAM to store temporary OTPs. For production scale, simply pass a Redis client:
 
 ```javascript
-import { RedisAdapter } from 'express-advanced-auth';
+import { RedisAdapter } from 'neural-auth';
 import { createClient } from 'redis';
 
 const redisClient = createClient({ url: 'redis://localhost:6379' });
@@ -241,7 +241,7 @@ const authRoutes = initAuth({
 If you don't use MongoDB, you can easily plug in any database by extending the `DatabaseAdapter` interface!
 
 ```javascript
-import { DatabaseAdapter, initAuth } from 'express-advanced-auth';
+import { DatabaseAdapter, initAuth } from 'neural-auth';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();

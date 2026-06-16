@@ -1,5 +1,5 @@
 {
-  "name": "express-advanced-auth",
+  "name": "neural-auth",
   "version": "1.0.0",
   "description": "Enterprise-grade authentication package for Express",
   "main": "index.js",
