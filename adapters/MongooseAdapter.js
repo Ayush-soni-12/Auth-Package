@@ -24,8 +24,14 @@ export class MongooseAdapter extends DatabaseAdapter {
   }
 
   async getUserById(id) {
-    const user = await this.UserModel.findById(id);
-    return this._toPlain(user);
+    try {
+      const user = await this.UserModel.findById(id);
+      return this._toPlain(user);
+    } catch (err) {
+      console.error("🚨 getUserById FAILED! The ID passed was:", id);
+      console.error("Error details:", err.message);
+      return null; // Invalid ID format (like "null" or undefined)
+    }
   }
 
   async createUser(userData) {
@@ -35,7 +41,11 @@ export class MongooseAdapter extends DatabaseAdapter {
   }
 
   async updateUser(id, updateData) {
-    const updatedUser = await this.UserModel.findByIdAndUpdate(id, updateData, { new: true });
-    return this._toPlain(updatedUser);
+    try {
+      const updatedUser = await this.UserModel.findByIdAndUpdate(id, updateData, { new: true });
+      return this._toPlain(updatedUser);
+    } catch (err) {
+      return null; // Invalid ID format
+    }
   }
 }

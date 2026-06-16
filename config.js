@@ -6,6 +6,7 @@ export const config = {
   emailAdapter: null,
   jwtSecret: process.env.JWT_SECRET || "default_secret",
   frontendUrl: process.env.FRONT_URL || "http://localhost:3000",
+  googleClientId: null,
 };
 
 export const setConfig = (userConfig) => {

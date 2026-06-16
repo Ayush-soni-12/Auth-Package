@@ -68,8 +68,10 @@ app.use(cookieParser());
 
 // Setup the Authentication routes
 const authRoutes = initAuth({
-  frontendUrl: "http://localhost:3000",
-  jwtSecret: "YOUR_SUPER_SECRET_KEY",
+  frontendUrl: process.env.FRONTEND_URL || "http://localhost:3000",
+  jwtSecret: process.env.JWT_SECRET,
+  cookieSecure: process.env.NODE_ENV === "production", // Optional: force HTTPS cookies in production
+  googleClientId: process.env.GOOGLE_CLIENT_ID, // Required if using Google Login
   
   // 1. Tell it how to talk to your database
   dbAdapter: new MongooseAdapter(User),
@@ -79,8 +81,8 @@ const authRoutes = initAuth({
     {
       service: "gmail",
       auth: {
-        user: "your-email@gmail.com",
-        pass: "your-app-password"
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
       }
     },
     "your-email@gmail.com" // From email
@@ -170,6 +172,49 @@ Call this on page load in your frontend to see if the user is currently logged i
 ### 9. Logout
 `POST /api/auth/logout`
 *Clears the cookie and securely blacklists the JWT in the cache to prevent replay attacks.*
+
+---
+
+## 🎁 Bonus: Free Frontend React Hooks!
+We've included a completely free, production-ready React Query implementation for all these endpoints. You don't have to write any frontend authentication logic yourself!
+
+Just copy the file from:
+`node_modules/express-advanced-auth/examples/react-query-hooks.ts`
+
+It includes ready-to-use hooks like `useLoginMutation`, `useVerifyOtpMutation`, `useCheckAuth`, and `useGoogleAuth` that automatically handle caching, local storage, and secure cookie management perfectly!
+
+---
+
+## ⚠️ Common Frontend Integration Gotchas
+
+When implementing this package in your frontend (React, Vue, etc.), be careful of these common mistakes:
+
+### 1. Handling the User ID
+Depending on your database adapter (like Mongoose), the returned ID could be `_id` instead of `id`. The login endpoint returns `userId: user._id` as a fallback.
+**Best Practice:** Safely check both fields when saving to `localStorage`:
+```javascript
+const userId = data.user._id || data.userId || data.user.id;
+localStorage.setItem("id", userId);
+```
+
+### 2. Don't clear Local Storage during OTP Verification
+If you have a global API interceptor or a `useCheckAuth()` hook that clears `localStorage` on a `401 Unauthorized` response, **make sure it doesn't run during the OTP Verification step!**
+Since the user isn't fully authenticated yet, your backend will naturally return `401`. If you wipe the `localStorage`, you'll delete the temporary `id` needed to submit the OTP!
+
+### 3. Evaluate Local Storage dynamically
+Don't evaluate `localStorage.getItem("id")` when the React component mounts. If the login finishes, but the component was already mounted, it will get stuck on `null`.
+**Best Practice:** Evaluate it exactly when the user clicks submit:
+```javascript
+const submitOtp = async (otp) => {
+  const id = localStorage.getItem("id"); // Get freshest ID at execution
+  await api.post(`/verifyLoginOtp/${id}`, { otp });
+}
+```
+
+### 4. Password Reset URL Parameters
+The Forget Password email sends users to `/resetPassword/ID/TOKEN`. 
+**Do not try to read the Token from Local Storage!** The user might have requested the reset on their laptop but opened the email on their phone.
+**Best Practice:** Ensure your frontend Router accepts parameters (e.g., `<Route path="resetPassword/:id/:token" />`) and read them from the URL directly (e.g., `useParams()` in React Router).
 
 ---
 
