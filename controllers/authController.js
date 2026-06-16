@@ -1,7 +1,5 @@
-import User from "../modals/User.js";
 import bcryptjs from "bcryptjs";
 import { generateCode } from "../helpers/generateCode.js";
-import client from "../utils/redisClient.js";
 import { generateCookie } from "../helpers/generateCookie.js";
 import jwt from "jsonwebtoken";
 import { AppError } from "../utils/AppError.js";
@@ -12,9 +10,17 @@ import {
   RESEND_OTP_EMAIL_TEMPLATE,
   VERIFICATION_EMAIL_TEMPLATE,
 } from "../helpers/emailTemplate.js";
-import { sendMail } from "../helpers/nodeMailer.js";
 import crypto from "crypto";
 import { verifyGoogleToken } from "../helpers/googleTokenHelper.js";
+import { config } from "../config.js";
+
+// Helper to remove password from returned user object
+const sanitizeUser = (user) => {
+  if (!user) return null;
+  const sanitized = { ...user };
+  delete sanitized.password;
+  return sanitized;
+};
 
 export const signup = async (req, res, next) => {
   const { username, email, password, confirmPassword } = req.body;
@@ -28,36 +34,29 @@ export const signup = async (req, res, next) => {
       throw new AppError("Password do not Match", 400);
     }
 
-    const userExists = await User.findOne({ email });
+    const userExists = await config.dbAdapter.getUserByEmail(email);
     if (userExists) {
       throw new AppError("User already exists", 400);
     }
 
     const hashPassword = await bcryptjs.hash(password, 10);
-    // const verificationCode = generateCode();
-    const newUser = new User({
+    
+    const newUser = await config.dbAdapter.createUser({
       username,
       email,
       password: hashPassword,
     });
-    // await client.set(`verificationCode:${email}`,verificationCode,"Ex",3600)
-
-    // generateCookie(res,newUser._id)
 
     const msg = VERIFICATION_EMAIL_TEMPLATE.replace(
       "{username}",
       username
     ).replace("{newUser._id}", newUser._id);
 
-    await sendMail(email, "Verify your email", msg);
-
-    await newUser.save();
-    const userResponse = newUser.toObject();
-    delete userResponse.password;
+    await config.emailAdapter.sendMail(email, "Verify your email", msg);
 
     return res
       .status(201)
-      .json({ message: "User created successfully", user: userResponse });
+      .json({ message: "User created successfully", user: sanitizeUser(newUser) });
   } catch (error) {
     next(error);
   }
@@ -70,11 +69,11 @@ export const verifyEmail = async (req, res, next) => {
   try {
     if (!id) {
       return res.redirect(
-        `${process.env.FRONT_URL}/email-verification-failed?error=Invalid verification link`
+        `${config.frontendUrl}/email-verification-failed?error=Invalid verification link`
       );
     }
 
-    const user = await User.findById(id);
+    const user = await config.dbAdapter.getUserById(id);
     if (!user) {
       throw new AppError("User does not exist", 400);
     }
@@ -84,21 +83,15 @@ export const verifyEmail = async (req, res, next) => {
     }
 
     // Update user as verified
-    user.isVerified = true;
-    await user.save();
+    await config.dbAdapter.updateUser(id, { isVerified: true });
 
     // Generate token and set cookie
     const token = generateCookie(res, user._id);
 
-    const userResponse = user.toObject();
-    delete userResponse.password;
-
-    return res.redirect(`${process.env.FRONT_URL}/email-verified-success`);
+    return res.redirect(`${config.frontendUrl}/email-verified-success`);
   } catch (error) {
     return res.redirect(
-      `${
-        process.env.FRONT_URL
-      }/email-verification-failed?error=${encodeURIComponent(error.message)}`
+      `${config.frontendUrl}/email-verification-failed?error=${encodeURIComponent(error.message)}`
     );
   }
 };
@@ -112,7 +105,7 @@ export const login = async (req, res, next) => {
     if (!email || !password) {
       throw new AppError("Invalid Credentials", 400);
     }
-    const user = await User.findOne({ email }).select("+password");
+    const user = await config.dbAdapter.getUserByEmailWithPassword(email);
     if (!user) {
       throw new AppError("user does not exist", 400);
     }
@@ -127,22 +120,18 @@ export const login = async (req, res, next) => {
     }
 
     const otp = generateCode();
-    await client.set(`otp:${user._id}`, otp, "Ex", 300);
+    await config.cacheAdapter.set(`otp:${user._id}`, otp, 300);
     const msg = LOGIN_OTP_EMAIL_TEMPLATE.replace("{otp}", otp);
-    await sendMail(email, "Login OTP", msg);
+    await config.emailAdapter.sendMail(email, "Login OTP", msg);
 
-    const userResponse = user.toObject();
-    delete userResponse.password;
-
-    // generateCookie(res,user._id)
     return res.status(200).json({
       message: "OTP sent to your email",
-      user: userResponse,
+      user: sanitizeUser(user),
       userId: user._id,
     });
   } catch (error) {
     next(error);
-  }login
+  }
 };
 
 export const verifyLoginOtp = async (req, res, next) => {
@@ -153,11 +142,11 @@ export const verifyLoginOtp = async (req, res, next) => {
       throw new AppError("Invalid request", 400);
     }
 
-    const user = await User.findById(id);
+    let user = await config.dbAdapter.getUserById(id);
     if (!user) {
       throw new AppError("user does not exist", 400);
     }
-    const isValid = await client.get(`otp:${user._id}`);
+    const isValid = await config.cacheAdapter.get(`otp:${user._id}`);
     if (!isValid) {
       throw new AppError("Otp expired ", 400);
     }
@@ -165,16 +154,16 @@ export const verifyLoginOtp = async (req, res, next) => {
       throw new AppError("Invalid Otp", 400);
     }
     const token = generateCookie(res, user._id);
-    user.lastlogin = new Date();
-    await user.save();
-    await client.del(`otp:${user._id}`);
+    
+    // Update lastlogin
+    user = await config.dbAdapter.updateUser(id, { lastlogin: new Date() });
+    
+    await config.cacheAdapter.del(`otp:${user._id}`);
 
-    const userResponse = user.toObject();
-    delete userResponse.password;
     return res.status(200).json({
       message: "Login successful",
       token, // Send token in response
-      user: userResponse,
+      user: sanitizeUser(user),
     });
   } catch (error) {
     next(error);
@@ -187,14 +176,14 @@ export const resendOtp = async (req, res, next) => {
     if (!id) {
       throw new AppError("Invalid request", 400);
     }
-    const user = await User.findById(id);
+    const user = await config.dbAdapter.getUserById(id);
     if (!user) {
       throw new AppError("user does not exist", 400);
     }
     const otp = generateCode();
-    await client.set(`otp:${user._id}`, otp, "Ex", 300);
+    await config.cacheAdapter.set(`otp:${user._id}`, otp, 300);
     const msg = RESEND_OTP_EMAIL_TEMPLATE.replace("{otp}", otp);
-    await sendMail(user.email, "Resend OTP", msg);
+    await config.emailAdapter.sendMail(user.email, "Resend OTP", msg);
     return res.status(200).json({ message: "OTP sent successfully" });
   } catch (error) {
     next(error);
@@ -208,24 +197,23 @@ export const forgetPassword = async (req, res, next) => {
     if (!email) {
       throw new AppError("Email is required ", 400);
     }
-    const user = await User.findOne({ email });
+    const user = await config.dbAdapter.getUserByEmail(email);
     if (!user) {
       throw new AppError("user does not exist", 400);
     }
     const resetToken = crypto.randomBytes(32).toString("hex");
-    await client.set(`resetToken:${user._id}`, resetToken, "Ex", 3600);
+    await config.cacheAdapter.set(`resetToken:${user._id}`, resetToken, 3600);
     const msg = PASSWORD_RESET_REQUEST_TEMPLATE.replace(
       "{resetURL}",
-      `${process.env.FRONT_URL}/resetPassword`
+      `${config.frontendUrl}/resetPassword`
     );
-    await sendMail(email, "Reset your password", msg);
-    const userResponse = user.toObject();
-    delete userResponse.password;
+    await config.emailAdapter.sendMail(email, "Reset your password", msg);
+    
     return res
       .status(200)
       .json({
         message: "Password reset link sent to your email",
-        user: userResponse,
+        user: sanitizeUser(user),
         resetToken: resetToken,
       });
   } catch (error) {
@@ -240,22 +228,24 @@ export const resetPassword = async (req, res, next) => {
     if (!id || !token || !password) {
       throw new AppError("Invalid request", 400);
     }
-    const tokenFromRedis = await client.get(`resetToken:${id}`);
+    const tokenFromRedis = await config.cacheAdapter.get(`resetToken:${id}`);
     if (!tokenFromRedis) {
       throw new AppError("Invalid or expired token", 400);
     }
     if (tokenFromRedis !== token) {
       throw new AppError("Invalid token", 400);
     }
-    const user = await User.findById(id);
+    const user = await config.dbAdapter.getUserById(id);
     if (!user) {
       throw new AppError("user does not exist", 400);
     }
-    user.password = await bcryptjs.hash(password, 10);
-    await user.save();
+    
+    const hashedPassword = await bcryptjs.hash(password, 10);
+    await config.dbAdapter.updateUser(id, { password: hashedPassword });
+    
     const msg = PASSWORD_RESET_SUCCESS_TEMPLATE;
-    await sendMail(user.email, "Password reset successful", msg);
-    await client.del(`resetToken:${id}`);
+    await config.emailAdapter.sendMail(user.email, "Password reset successful", msg);
+    await config.cacheAdapter.del(`resetToken:${id}`);
     return res.status(200).json({ message: "Password reset successful" });
   } catch (error) {
     next(error);
@@ -271,7 +261,7 @@ export const logout = async (req, res, next) => {
       const expiresAt = decoded.exp - Math.floor(Date.now() / 1000);
 
       if (expiresAt > 0) {
-        await client.setEx(`blacklist:${token}`, expiresAt, "blacklisted");
+        await config.cacheAdapter.set(`blacklist:${token}`, "blacklisted", expiresAt);
       }
     } catch (error) {
       next(error);
@@ -289,13 +279,13 @@ export const logout = async (req, res, next) => {
 
 export const checkAuth = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select("-password");
+    const user = await config.dbAdapter.getUserById(req.user._id);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
     return res.status(200).json({
-      user,
+      user: sanitizeUser(user),
       isAuthenticated: true,
       cached: false
     });
@@ -303,9 +293,6 @@ export const checkAuth = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
-
-
-
 
 export const googleAuth = async (req, res, next) => {
   try {
@@ -328,39 +315,37 @@ export const googleAuth = async (req, res, next) => {
       throw new AppError("Email not verified", 400);
     }
 
-    let user = await User.findOne({ email });
+    let user = await config.dbAdapter.getUserByEmail(email);
 
     // 🆕 SIGNUP
     if (!user) {
-      user = await User.create({
+      user = await config.dbAdapter.createUser({
         username: name,
         email,
         googleId,
         authProvider: "google",
         isVerified: true,
       });
+    } else {
+      // 🔁 LOGIN (existing user)
+      if (user.authProvider === "local" && !user.googleId) {
+        // Optional: link accounts
+        user = await config.dbAdapter.updateUser(user._id, {
+            googleId: googleId,
+            authProvider: "google",
+            isVerified: true,
+            lastlogin: new Date()
+        });
+      } else {
+          user = await config.dbAdapter.updateUser(user._id, { lastlogin: new Date() });
+      }
     }
-
-    // 🔁 LOGIN (existing user)
-    if (user.authProvider === "local" && !user.googleId) {
-      // Optional: link accounts
-      user.googleId = googleId;
-      user.authProvider = "google";
-      user.isVerified = true;
-      await user.save();
-    }
-
-    user.lastlogin = new Date();
-    await user.save();
 
     generateCookie(res, user._id);
 
-    const userResponse = user.toObject();
-    delete userResponse.password;
-
     return res.status(200).json({
       message: "Google authentication successful",
-      user: userResponse,
+      user: sanitizeUser(user),
     });
 
   } catch (err) {
