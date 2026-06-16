@@ -47,10 +47,12 @@ export const signup = async (req, res, next) => {
       password: hashPassword,
     });
 
+    const verificationURL = `${req.protocol}://${req.get("host")}${req.baseUrl}/verifyEmail/${newUser._id}`;
+
     const msg = VERIFICATION_EMAIL_TEMPLATE.replace(
       "{username}",
       username
-    ).replace("{newUser._id}", newUser._id);
+    ).replace("{verificationURL}", verificationURL);
 
     await config.emailAdapter.sendMail(email, "Verify your email", msg);
 
@@ -205,7 +207,7 @@ export const forgetPassword = async (req, res, next) => {
     await config.cacheAdapter.set(`resetToken:${user._id}`, resetToken, 3600);
     const msg = PASSWORD_RESET_REQUEST_TEMPLATE.replace(
       "{resetURL}",
-      `${config.frontendUrl}/resetPassword`
+      `${config.frontendUrl}/resetPassword/${user._id}/${resetToken}`
     );
     await config.emailAdapter.sendMail(email, "Reset your password", msg);
     

@@ -14,9 +14,9 @@ export const VERIFICATION_EMAIL_TEMPLATE = `
     <p>Hello,</p>
     <p>Thank you for signing up! Your verification code is:</p>
     <div style="text-align: center; margin: 30px 0;">
-      <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #4CAF50;"><p>Hi {username}, Please <a href="http://localhost:3000/api/auth/verifyEmail/{newUser._id}">verify</a> your mail.</p></span>
+      <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #4CAF50;"><p>Hi {username}, Please <a href="{verificationURL}">verify</a> your mail.</p></span>
     </div>
-    <p>Click the link above  to complete your registration.</p>
+    <p>Click the link above to complete your registration.</p>
     <p>This link will expire after some time minutes for security reasons.</p>
     <p>If you didn't create an account with us, please ignore this email.</p>
     <p>Best regards,<br>Your App Team</p>
