@@ -29,7 +29,10 @@ const userSchema = new mongoose.Schema(
       unique: true,
       sparse: true, // allows null for non-google users
     },
-
+    role: {
+      type: String,
+      default: "user",
+    },
 
     isVerified: {
       type: Boolean,

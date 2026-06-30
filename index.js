@@ -8,6 +8,9 @@ import { MemoryCacheAdapter } from './adapters/MemoryCacheAdapter.js';
 import { EmailAdapter } from './adapters/EmailAdapter.js';
 import { NodeMailerAdapter } from './adapters/NodeMailerAdapter.js';
 
+import { verifyToken } from './helpers/validateToken.js';
+import { requireRole } from './middlewares/roleMiddleware.js';
+
 /**
  * Initializes the Authentication module with user configurations
  * 
@@ -42,5 +45,7 @@ export {
     RedisAdapter,
     MemoryCacheAdapter,
     EmailAdapter,
-    NodeMailerAdapter
+    NodeMailerAdapter,
+    verifyToken,
+    requireRole
 };

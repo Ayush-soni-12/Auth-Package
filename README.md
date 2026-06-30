@@ -5,6 +5,7 @@ A complete, enterprise-grade Authentication package for Express applications. St
 ## 🚀 Features
 
 - **Full Auth Flow:** Signup, Login, and Logout.
+- **Role-Based Access Control (RBAC):** Built-in middleware to protect admin/manager routes dynamically.
 - **Two-Factor Authentication (2FA):** OTP-based login via email.
 - **Email Verification:** Mandate users to verify their email before authenticating.
 - **Password Recovery:** Secure Forget and Reset Password workflows using expiring tokens.
@@ -42,7 +43,14 @@ const userSchema = new mongoose.Schema({
   isVerified: { type: Boolean, default: false },
   lastlogin: { type: Date, default: Date.now },
   authProvider: { type: String, default: "local" },
-  googleId: { type: String, sparse: true }
+  googleId: { type: String, sparse: true },
+  
+  // Define your own roles here! The package adapts to whatever you write.
+  role: { 
+    type: String, 
+    enum: ["user", "admin", "moderator"], 
+    default: "user" 
+  }
 });
 
 export default mongoose.model("User", userSchema);
@@ -97,6 +105,26 @@ app.listen(8000, () => console.log('Server running on port 8000'));
 
 That's it! Your backend now has 10 fully functioning secure endpoints.
 
+### 3. Protecting Admin Routes
+If you want to create an admin dashboard or protect specific routes based on the user's role, you can use the built-in `verifyToken` and `requireRole` middlewares!
+
+**Dynamic Roles Note:** Because you inject your own Mongoose model into the package, the package doesn't force a strict role structure on you. You can define any roles you want in your own `User.js` schema's `enum` array (like `"manager"`, `"moderator"`, or `"superadmin"`), and the middleware will handle them dynamically!
+
+```javascript
+import { verifyToken, requireRole } from 'neural-auth';
+
+// This route requires the user to be logged in AND have the 'admin' role
+app.get('/api/admin/dashboard', verifyToken, requireRole('admin'), (req, res) => {
+  res.json({ message: 'Welcome to the admin dashboard!' });
+});
+
+// You can also pass multiple roles!
+app.get('/api/managers', verifyToken, requireRole('admin', 'manager', 'moderator'), (req, res) => {
+  res.json({ message: 'Welcome to the manager dashboard!' });
+});
+```
+
+
 ---
 
 ## 🌐 Frontend API Guide
@@ -146,7 +174,7 @@ Your frontend (React, Vue, Next.js, etc.) will interact with the mounted `/api/a
 Call this on page load in your frontend to see if the user is currently logged in.
 **Response:**
 ```json
-{
+{u
   "isAuthenticated": true,
   "user": {
     "_id": "123...",
