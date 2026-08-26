@@ -23,10 +23,12 @@ const sanitizeUser = (user) => {
 };
 
 export const signup = async (req, res, next) => {
-  const { username, email, password, confirmPassword } = req.body;
+  // Destructure known internal fields; everything else in ...extraFields
+  // gets passed through to createUser so custom schema fields are saved.
+  const { email, password, confirmPassword, terms, ...extraFields } = req.body;
 
   try {
-    if (!email || !username || !password || !confirmPassword) {
+    if (!email || !password || !confirmPassword) {
       throw new AppError("Fill all the fields", 400);
     }
 
@@ -40,9 +42,12 @@ export const signup = async (req, res, next) => {
     }
 
     const hashPassword = await bcryptjs.hash(password, 10);
-    
+
+    // Spread extraFields (e.g. username, phone, avatar...) into the new user.
+    // The adapter's createUser passes this straight to the Mongoose model,
+    // so only fields defined in the consumer's schema will actually be stored.
     const newUser = await config.dbAdapter.createUser({
-      username,
+      ...extraFields,
       email,
       password: hashPassword,
     });
@@ -51,7 +56,7 @@ export const signup = async (req, res, next) => {
 
     const msg = VERIFICATION_EMAIL_TEMPLATE.replace(
       "{username}",
-      username
+      req.body.username || email
     ).replace("{verificationURL}", verificationURL);
 
     await config.emailAdapter.sendMail(email, "Verify your email", msg);
@@ -88,7 +93,7 @@ export const verifyEmail = async (req, res, next) => {
     await config.dbAdapter.updateUser(id, { isVerified: true });
 
     // Generate token and set cookie
-    const token = generateCookie(res, user._id);
+    generateCookie(res, user._id);
 
     return res.redirect(`${config.frontendUrl}/email-verified-success`);
   } catch (error) {
@@ -156,10 +161,10 @@ export const verifyLoginOtp = async (req, res, next) => {
       throw new AppError("Invalid Otp", 400);
     }
     const token = generateCookie(res, user._id);
-    
+
     // Update lastlogin
     user = await config.dbAdapter.updateUser(id, { lastlogin: new Date() });
-    
+
     await config.cacheAdapter.del(`otp:${user._id}`);
 
     return res.status(200).json({
@@ -210,14 +215,12 @@ export const forgetPassword = async (req, res, next) => {
       `${config.frontendUrl}/resetPassword/${user._id}/${resetToken}`
     );
     await config.emailAdapter.sendMail(email, "Reset your password", msg);
-    
-    return res
-      .status(200)
-      .json({
-        message: "Password reset link sent to your email",
-        user: sanitizeUser(user),
-        resetToken: resetToken,
-      });
+
+    return res.status(200).json({
+      message: "Password reset link sent to your email",
+      user: sanitizeUser(user),
+      resetToken: resetToken,
+    });
   } catch (error) {
     next(error);
   }
@@ -241,10 +244,10 @@ export const resetPassword = async (req, res, next) => {
     if (!user) {
       throw new AppError("user does not exist", 400);
     }
-    
+
     const hashedPassword = await bcryptjs.hash(password, 10);
     await config.dbAdapter.updateUser(id, { password: hashedPassword });
-    
+
     const msg = PASSWORD_RESET_SUCCESS_TEMPLATE;
     await config.emailAdapter.sendMail(user.email, "Password reset successful", msg);
     await config.cacheAdapter.del(`resetToken:${id}`);
@@ -289,7 +292,7 @@ export const checkAuth = async (req, res) => {
     return res.status(200).json({
       user: sanitizeUser(user),
       isAuthenticated: true,
-      cached: false
+      cached: false,
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -319,7 +322,7 @@ export const googleAuth = async (req, res, next) => {
 
     let user = await config.dbAdapter.getUserByEmail(email);
 
-    // 🆕 SIGNUP
+    // 🆕 SIGNUP via Google
     if (!user) {
       user = await config.dbAdapter.createUser({
         username: name,
@@ -331,15 +334,15 @@ export const googleAuth = async (req, res, next) => {
     } else {
       // 🔁 LOGIN (existing user)
       if (user.authProvider === "local" && !user.googleId) {
-        // Optional: link accounts
+        // Link accounts — local user signing in with Google for the first time
         user = await config.dbAdapter.updateUser(user._id, {
-            googleId: googleId,
-            authProvider: "google",
-            isVerified: true,
-            lastlogin: new Date()
+          googleId,
+          authProvider: "google",
+          isVerified: true,
+          lastlogin: new Date(),
         });
       } else {
-          user = await config.dbAdapter.updateUser(user._id, { lastlogin: new Date() });
+        user = await config.dbAdapter.updateUser(user._id, { lastlogin: new Date() });
       }
     }
 
@@ -349,7 +352,6 @@ export const googleAuth = async (req, res, next) => {
       message: "Google authentication successful",
       user: sanitizeUser(user),
     });
-
   } catch (err) {
     next(err);
   }
