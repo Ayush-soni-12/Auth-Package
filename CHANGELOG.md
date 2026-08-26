@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-08-26
+
+### Added
+- **Extensible User Schema Factory:** Added `createUserModel()` factory and exported `baseUserSchemaFields` so developers can extend the User schema with custom fields (`phone`, `avatar`, etc.) and custom schema options.
+- **Custom Signup Validation:** Added `signupValidationSchema` option to `initAuth()` to allow overriding the built-in Zod signup validation schema.
+- **Automatic Field Passthrough:** Refactored `signup` controller to automatically pass non-internal request body fields to `createUser()`.
+
+### Changed
+- **Removed Hardcoded Schema Locks:** Unlocked `authProvider` from a strict enum to an open string.
+- **Cleaned Base Schema:** Removed unused `resetPasswordToken` and `resetPasswordExpires` fields from Mongoose base schema (reset tokens are managed via Cache adapters).
+- **Flexible Default Signup Schema:** Made `username` and `terms` optional in default `signupSchema` to support diverse clients.
+
 ## [1.1.0] - 2026-06-30
 
 ### Added
