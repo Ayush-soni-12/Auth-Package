@@ -1,11 +1,18 @@
 import { z } from "zod";
+
+/**
+ * Built-in signup schema.
+ * username and terms are optional — not every app/client sends them.
+ * Pass signupValidationSchema in initAuth() to fully replace this.
+ */
 export const signupSchema = z.object({
   body: z.object({
     username: z
       .string()
       .min(2, "Name must be at least 2 characters")
       .max(50, "Name must be less than 50 characters")
-      .regex(/^[a-zA-Z\s]*$/, "Name can only contain letters and spaces"),
+      .regex(/^[a-zA-Z\s]*$/, "Name can only contain letters and spaces")
+      .optional(),
 
     email: z
       .email("Please enter a valid email address")
@@ -24,12 +31,11 @@ export const signupSchema = z.object({
 
     confirmPassword: z.string(),
 
+    // terms is optional — mobile apps and API clients often don't send it
     terms: z
       .boolean()
-      .refine(
-        (val) => val === true,
-        "You must accept the terms and conditions"
-      ),
+      .refine((val) => val === true, "You must accept the terms and conditions")
+      .optional(),
   }),
 });
 
