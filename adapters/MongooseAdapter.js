@@ -42,7 +42,7 @@ export class MongooseAdapter extends DatabaseAdapter {
 
   async updateUser(id, updateData) {
     try {
-      const updatedUser = await this.UserModel.findByIdAndUpdate(id, updateData, { new: true });
+      const updatedUser = await this.UserModel.findByIdAndUpdate(id, updateData, { new: true, returnDocument: 'after' });
       return this._toPlain(updatedUser);
     } catch (err) {
       return null; // Invalid ID format
